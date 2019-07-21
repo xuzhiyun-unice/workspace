@@ -291,9 +291,9 @@ void precompute_BM(
 	table_distance.reserve(Ns * Ns);
 
 
-	for (unsigned ind_i = 0; ind_i < 1; ind_i++)
+	for (unsigned ind_i = 0; ind_i < row_ind.size(); ind_i++)
 	{
-		for (unsigned ind_j = 0; ind_j < 1; ind_j++)
+		for (unsigned ind_j = 0; ind_j < column_ind.size(); ind_j++)
 		{
 			//! Initialization
 			const unsigned k_r = row_ind[ind_i] * width + column_ind[ind_j];
@@ -413,6 +413,14 @@ int main(int argc, char** argv) {
 	{
 		cout << (*iter) << "   ";
 	}*/
+	
+	
+	
+	
+
+		
+
+
 
 
 	cout << "end";
