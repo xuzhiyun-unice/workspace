@@ -271,7 +271,7 @@ void precompute_BM(
 	float diff_table[SIZE_H_PAD][SIZE_W_PAD] = { 0 };
 	float  sum_table[SIZE_H_PAD*SIZE_W_PAD][N2 + 1][N];
 	int row_ind[5] = { 0 };
-	int row_ind_size, column_ind_size = 5;
+	int row_ind_size=5, column_ind_size = 5;
 	int column_ind[5] = { 0 };
 	ind_initialize(row_ind, SIZE_H_PAD - kHW + 1, nHW, pHW);
 	ind_initialize(column_ind, SIZE_W_PAD - kHW + 1, nHW, pHW);
@@ -362,9 +362,9 @@ void precompute_BM(
 	////! To avoid reallocation
 	//table_distance.reserve(Ns * Ns);
 	int BlockCount = 1;
-	for (unsigned ind_i = 0; ind_i < 1; ind_i++)
+	for (unsigned ind_i = 0; ind_i < row_ind_size; ind_i++)
 	{
-		for (unsigned ind_j = 0; ind_j < 1; ind_j++)
+		for (unsigned ind_j = 0; ind_j < column_ind_size; ind_j++)
 		{
 			//! Initialization
 			const unsigned k_r = row_ind[ind_i] * width + column_ind[ind_j];
