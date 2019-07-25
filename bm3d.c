@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include<time.h>
-#include "io_png.h"
+#include "io_png.h"A
 #define DTYPE int
 #define H 384
 #define chnls 1
@@ -348,11 +348,11 @@ void precompute_BM(
 		}
 
 	//! Precompute Bloc Matching
-	for (int  ind_i = 0; ind_i <row_index_size ; ind_i++)
-	//for (int ind_i = 0; ind_i < 1; ind_i++)
+	for (int ind_i = 0; ind_i < row_index_size; ind_i++)
+		//for (int ind_i = 0; ind_i < 1; ind_i++)
 	{
 		for (int ind_j = 0; ind_j < column_index_size; ind_j++)
-		//for (int ind_j = 0; ind_j < 1; ind_j++) 		
+			//for (int ind_j = 0; ind_j < 1; ind_j++) 		
 		{
 			//! Initialization
 			const int  k_r = row_ind[ind_i] * width + column_ind[ind_j];
@@ -447,7 +447,7 @@ void precompute_BM(
 			if (BlockCount < NHard) {
 				if (BlockCount == 1)
 				{
-					printf("problem size \n");
+					printf("problem size ,%d \n",k_r);
 				}
 				BlockCount = closest_power_of_2(BlockCount);
 			}
@@ -627,20 +627,20 @@ void hadamard_transform(
 
 
 void ht_filtering_hadamard(
-	float* group_3D
+	float group_3D[NHard*KK]
 	, float tmp[NHard]
 	, const unsigned nSx_r
 	, float sigma
 	, const float lambdaHard3D
-	, float weight_table
+	, float weight_table[1]
 ) {
 	//! Declarations
 
 	const float coef_norm = sqrtf((float)nSx_r);
 	const float coef = 1.0f / (float)nSx_r;
-
+	int count = 0.0f;
 	//! Process the Welsh-Hadamard transform on the 3rd dimension
-	for (unsigned n = 0; n < kHard_2 ; n++){
+	for (unsigned n = 0; n < kHard_2; n++) {
 		hadamard_transform(group_3D, tmp, nSx_r, n * nSx_r);
 	}
 	//! Hard Thresholding
@@ -648,20 +648,22 @@ void ht_filtering_hadamard(
 	const float T = lambdaHard3D * sigma * coef_norm;
 	for (unsigned k = 0; k < kHard_2 * nSx_r; k++)
 	{
-		if (fabs(group_3D[k]) > T)
-			weight_table++;
+		if (fabs(group_3D[k]) > T){
+			count++;
+		}
 		else
 			group_3D[k] = 0.0f;
 	}
-
+	weight_table[0] = (float) count;
 
 	//! Process of the Welsh-Hadamard inverse transform
 	for (unsigned n = 0; n < kHard_2 * chnls; n++)
 		hadamard_transform(group_3D, tmp, nSx_r, n * nSx_r);
 
-	for (unsigned k = 0; k < nSx_r * KK; k++)
+	for (unsigned k = 0; k < nSx_r * KK; k++){
 		group_3D[k] *= coef;
-
+	//	printf("T2: %d ", (group_3D[k]));
+	}
 	//! Weight for aggregation
 	//if (doWeight)
 	//	for (unsigned c = 0; c < chnls; c++)
@@ -674,14 +676,14 @@ void ht_filtering_hadamard(
 
 int main()
 {
-	static float Image[H][W],img_out[H][W];
+	static float Image[H][W], img_out[H*W];
 	static float pad[SIZE_H_PAD][SIZE_W_PAD], img_basic[SIZE_H_PAD][SIZE_W_PAD];
 	static float patch_table[SIZE_H_PAD * SIZE_W_PAD] = { 0 }; //number of block
 	static int index_w[SIZE_H_PAD * SIZE_W_PAD][NHard] = { 0 };//index of patch_table block
 	static int index_h[SIZE_H_PAD * SIZE_W_PAD][NHard] = { 0 };//index of patch_table block
-	float weight_table = 0.0f;	//vector<float> weight_table(chnls);
+	float weight_table[1] = { 0.0f };	//vector<float> weight_table(chnls);
 	float sigma = 10.0f;
-	const float    lambdaHard3D = 2.7f;
+	const float    lambdaHard3D = 2.1f;
 
 	//! Kaiser Window coefficients
 	float kaiser_window[K][K] =
@@ -762,13 +764,12 @@ int main()
 
 		// //tau_2D == BIOR
 		//bior_2d_process(table_2D, pad, i_r, row_ind[0], row_ind[0], lpd, hpd);
-
 	//wx_r_table.clear();
 	//group_3D_table.clear();
 
 	//! Loop on j_r
-	for (unsigned ind_j = 0; ind_j < column_index_size; ind_j++)
-		//for (unsigned ind_j = 0; ind_j < 1; ind_j++)
+		for (unsigned ind_j = 0; ind_j < column_index_size; ind_j++)
+			//for (unsigned ind_j = 0; ind_j < 1; ind_j++)
 		{
 			//! Initialization
 			const unsigned j_r = column_ind[ind_j];
@@ -776,7 +777,8 @@ int main()
 			//! Number of similar patches
 			const unsigned nSx_r = patch_table[k_r];
 			//! Build of the 3D group
-			Float_group* group_3D = (Float_group*)calloc(nSx_r * KK, sizeof(Float_group));//vector<float> group_3D(chnls * nSx_r * kHard_2, 0.0f);
+			static float group_3D[NHard* KK] = { 0.0f };
+			//Float_group* group_3D = (Float_group*)calloc(nSx_r * KK, sizeof(Float_group));//vector<float> group_3D(chnls * nSx_r * kHard_2, 0.0f);
 			for (unsigned n = 0; n < nSx_r; n++)
 				//for (unsigned n = 0; n < 1; n++)
 			{
@@ -784,11 +786,11 @@ int main()
 				for (int p = 0; p < K; p++) {
 					for (int q = 0; q < K; q++) {
 						group_3D[n + (p * K + q) * nSx_r] = table_2D[index][p][q];
-						// printf("k_r:%d,index:(%d,%d),value%f: ", k_r, index_h[k_r][n], index_w[k_r][n], group_3D[n + (p * K + q) * nSx_r]);
+						//printf("k_r:%d,index:(%d,%d),value%f: ", k_r, index_h[k_r][n], index_w[k_r][n],group_3D[n + (p * K + q) * nSx_r]);
 					}
 				}
 			}
-
+			weight_table[0] = 0.0f;
 			//! HT filtering of the 3D group
 			ht_filtering_hadamard(group_3D, hadamard_tmp, nSx_r, sigma, lambdaHard3D, weight_table);
 
@@ -808,8 +810,8 @@ int main()
 			}
 
 			//! Save weighting
-			wx_r_table[ind_j] = weight_table;
-			free(group_3D);
+			wx_r_table[ind_j] = weight_table[0];
+			//free(group_3D);
 			//printf("index:(%d,%d) ", ind_i, ind_j);
 		} //! End of loop on j_r
 
@@ -832,20 +834,22 @@ int main()
 			const unsigned j_r = column_ind[ind_j];
 			const unsigned k_r = i_r * SIZE_W_PAD + j_r;
 			const unsigned nSx_r = patch_table[k_r];
-				for (unsigned n = 0; n < nSx_r; n++)
-				{
-					for (unsigned p = 0; p < kHard; p++)
-						for (unsigned q = 0; q < kHard; q++)
-						{
-							numerator[(index_h[k_r][n]+p)][(index_w[k_r][n]+q)] += kaiser_window[p][q]
-								* wx_r_table[ ind_j ]
-								* group_3D_table[  n+ind_j*NHard][p][q];
-							denominator[(index_h[k_r][n] + p)][(index_w[k_r][n] + q)] += kaiser_window[p][q]
-								* wx_r_table[ind_j ];
-						}
-				}
+			for (unsigned n = 0; n < nSx_r; n++)
+			{
+				for (unsigned p = 0; p < kHard; p++)
+					for (unsigned q = 0; q < kHard; q++)
+					{
+						numerator[(index_h[k_r][n] + p)][(index_w[k_r][n] + q)] += kaiser_window[p][q]
+							* wx_r_table[ind_j]
+							* group_3D_table[n + ind_j * NHard][p][q];
+						//printf(" ka %f ,W : %f, g: %f ", kaiser_window[p][q], wx_r_table[ind_j], group_3D_table[n + ind_j * NHard][p][q]);
+
+						denominator[(index_h[k_r][n] + p)][(index_w[k_r][n] + q)] += kaiser_window[p][q]
+							* wx_r_table[ind_j];
+					}
+			}
 		}
-		printf(" numerator: %f  ", numerator[ind_i][0]);
+		//printf(" numerator: %f  ", numerator[ind_i][0]);
 	}//! End of loop on i_r
 
 	//! Final reconstruction
@@ -853,7 +857,8 @@ int main()
 	{
 		for (int j = 0; j < SIZE_W_PAD; j++)
 		{
-		img_basic[i][j] = numerator[i][j] / denominator[i][j];
+			img_basic[i][j] = numerator[i][j] / denominator[i][j];
+		//	printf(" img_basic: %f  ", img_basic[i][j]);
 		}
 	}
 
@@ -862,7 +867,7 @@ int main()
 	{
 		for (j = 0; j < W; j++)
 		{
-			img_out[H][W] = img_basic[i + N2][j + N2];
+			img_out[i*W+j] = img_basic[i + N2][j + N2];
 		}
 	}
 	if (write_png_f32(output_img, img_out, (size_t)nx, (size_t)ny, (size_t)nc) != 0) {
