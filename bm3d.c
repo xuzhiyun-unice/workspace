@@ -445,10 +445,10 @@ void precompute_BM(
 			}
 			//Number of Blocks must be power of 2;
 			if (BlockCount < NHard) {
-				if (BlockCount == 1)
-				{
-					printf("problem size ,%d \n",k_r);
-				}
+				//if (BlockCount == 1)
+				//{
+				//	printf("problem size ,%d \n", k_r);
+				//}
 				BlockCount = closest_power_of_2(BlockCount);
 			}
 			patch_table[k_r] = BlockCount; //get number of block
@@ -627,12 +627,12 @@ void hadamard_transform(
 
 
 void ht_filtering_hadamard(
-	float group_3D[NHard*KK]
+	float group_3D[NHard * KK]
 	, float tmp[NHard]
 	, const unsigned nSx_r
 	, float sigma
 	, const float lambdaHard3D
-	, float weight_table[1]
+	, float* weight_table
 ) {
 	//! Declarations
 
@@ -648,21 +648,21 @@ void ht_filtering_hadamard(
 	const float T = lambdaHard3D * sigma * coef_norm;
 	for (unsigned k = 0; k < kHard_2 * nSx_r; k++)
 	{
-		if (fabs(group_3D[k]) > T){
+		if (fabs(group_3D[k]) > T) {
 			count++;
 		}
 		else
 			group_3D[k] = 0.0f;
 	}
-	weight_table[0] = (float) count;
+	*weight_table = (float)count;
 
 	//! Process of the Welsh-Hadamard inverse transform
 	for (unsigned n = 0; n < kHard_2 * chnls; n++)
 		hadamard_transform(group_3D, tmp, nSx_r, n * nSx_r);
 
-	for (unsigned k = 0; k < nSx_r * KK; k++){
+	for (unsigned k = 0; k < nSx_r * KK; k++) {
 		group_3D[k] *= coef;
-	//	printf("T2: %d ", (group_3D[k]));
+		//	printf("T2: %d ", (group_3D[k]));
 	}
 	//! Weight for aggregation
 	//if (doWeight)
@@ -674,17 +674,43 @@ void ht_filtering_hadamard(
 }
 
 
+/**
+ * @brief Compute PSNR and RMSE between img_1 and img_2
+ *
+ * @param img_1 : pointer to an allocated array of pixels.
+ * @param img_2 : pointer to an allocated array of pixels.
+ * @param psnr  : will contain the PSNR
+ * @param rmse  : will contain the RMSE
+ *
+ * @return EXIT_FAILURE if both images haven't the same size.
+ **/
+void compute_psnr(
+	float img_1[H][W]
+	, float img_2[H][W]
+	, float* psnr
+	, float* rmse
+)
+{
+	float tmp = 0.0f;
+	for (unsigned i = 0; i < H; i++)
+		for (unsigned j = 0; j < W; j++){
+			tmp += (img_1[i][j] - img_2[i][j]) * (img_1[i][j] - img_2[i][j]);
+		}
+	(*rmse) = sqrtf(tmp / (float)(H*W));
+	(*psnr) = 20.0f * log10f(255.0f / (*rmse));
+}
+
+
 int main()
 {
-	static float Image[H][W], img_out[H*W];
+	static float Image[H][W], image_step1[H][W], img_out[H * W];
 	static float pad[SIZE_H_PAD][SIZE_W_PAD], img_basic[SIZE_H_PAD][SIZE_W_PAD];
-	static float patch_table[SIZE_H_PAD * SIZE_W_PAD] = { 0 }; //number of block
+	static float patch_table[SIZE_H_PAD * SIZE_W_PAD] = { 0.0f }; //number of block
 	static int index_w[SIZE_H_PAD * SIZE_W_PAD][NHard] = { 0 };//index of patch_table block
 	static int index_h[SIZE_H_PAD * SIZE_W_PAD][NHard] = { 0 };//index of patch_table block
-	float weight_table[1] = { 0.0f };	//vector<float> weight_table(chnls);
+	float psnr[2], rmse[2];
 	float sigma = 10.0f;
-	const float    lambdaHard3D = 2.1f;
-
+	float    lambdaHard3D = 2.1f;
 	//! Kaiser Window coefficients
 	float kaiser_window[K][K] =
 	{ { 0.1924f, 0.2989f, 0.3846f, 0.4325f, 0.4325f, 0.3846f, 0.2989f, 0.1924f},
@@ -695,11 +721,14 @@ int main()
 	  { 0.3846f, 0.5974f, 0.7688f, 0.8644f, 0.8644f, 0.7688f, 0.5974f, 0.3846f },
 	  { 0.2989f, 0.4642f,0.5974f, 0.6717f, 0.6717f, 0.5974f, 0.4642f, 0.2989f },
    {0.1924f, 0.2989f, 0.3846f, 0.4325f, 0.4325f, 0.3846f, 0.2989f, 0.1924f } };
-
+	int i, j, p, q, m, n;
 	char input_img[32];
 	char output_img[32];
-	sprintf(input_img, "test.png");
-	sprintf(output_img, "denoised.png");
+	//sprintf(input_img, "test.png");
+	//sprintf(output_img, "denoised.png");
+
+	sprintf(input_img, "test_sig10.png");
+	sprintf(output_img, "denoised_sig10.png");
 
 	size_t nx, ny, nc;
 	float* mat_in = NULL;
@@ -709,8 +738,11 @@ int main()
 		printf("error :: %s not found  or not a correct png image \n", input_img);
 		exit(-1);
 	}
+	printf("image size :\n"); 
+	printf(" - width          = %d  \n",nx);
+	printf(" - height         = %d  \n",ny);
+	printf(" - nb of channels = %d  \n",nc);
 
-	int i, j, p, q, m, n;
 	for (i = 0; i < H; i++)
 	{
 		for (j = 0; j < W; j++)
@@ -748,12 +780,12 @@ int main()
 	//wx_r_table.reserve(chnls * column_ind.size());
 	//vector<float> hadamard_tmp(NHard);
 	static float group_3D_table[NHard * column_index_size][K][K] = { 0.0f };
-	static float wx_r_table[column_index_size] = { 0.0f };
+	static float weight_table[column_index_size] = { 0.0f };
 	static float hadamard_tmp[NHard] = { 0.0f };
 
 
 	for (int ind_i = 0; ind_i < row_index_size; ind_i++)
-	//for (int ind_i = 0; ind_i < 1; ind_i++)
+		//for (int ind_i = 0; ind_i < 1; ind_i++)
 	{
 		const int i_r = row_ind[ind_i];
 		//printf("%d  ", i_r);
@@ -777,7 +809,7 @@ int main()
 			//! Number of similar patches
 			const unsigned nSx_r = patch_table[k_r];
 			//! Build of the 3D group
-			static float group_3D[NHard* KK] = { 0.0f };
+			static float group_3D[NHard * KK] = { 0.0f };
 			//Float_group* group_3D = (Float_group*)calloc(nSx_r * KK, sizeof(Float_group));//vector<float> group_3D(chnls * nSx_r * kHard_2, 0.0f);
 			for (unsigned n = 0; n < nSx_r; n++)
 				//for (unsigned n = 0; n < 1; n++)
@@ -790,10 +822,8 @@ int main()
 					}
 				}
 			}
-			weight_table[0] = 0.0f;
 			//! HT filtering of the 3D group
-			ht_filtering_hadamard(group_3D, hadamard_tmp, nSx_r, sigma, lambdaHard3D, weight_table);
-
+			ht_filtering_hadamard(group_3D, hadamard_tmp, nSx_r, sigma, lambdaHard3D, &weight_table[ind_j]);
 
 			//! 3D weighting using Standard Deviation
 
@@ -808,9 +838,6 @@ int main()
 					}
 				}
 			}
-
-			//! Save weighting
-			wx_r_table[ind_j] = weight_table[0];
 			//free(group_3D);
 			//printf("index:(%d,%d) ", ind_i, ind_j);
 		} //! End of loop on j_r
@@ -829,7 +856,7 @@ int main()
 		//! Registration of the weighted estimation
 
 		for (unsigned ind_j = 0; ind_j < column_index_size; ind_j++)
-		//for (unsigned ind_j = 0; ind_j < 1; ind_j++)
+			//for (unsigned ind_j = 0; ind_j < 1; ind_j++)
 		{
 			const unsigned j_r = column_ind[ind_j];
 			const unsigned k_r = i_r * SIZE_W_PAD + j_r;
@@ -840,12 +867,12 @@ int main()
 					for (unsigned q = 0; q < kHard; q++)
 					{
 						numerator[(index_h[k_r][n] + p)][(index_w[k_r][n] + q)] += kaiser_window[p][q]
-							* wx_r_table[ind_j]
+							* weight_table[ind_j]
 							* group_3D_table[n + ind_j * NHard][p][q];
 						//printf(" ka %f ,W : %f, g: %f ", kaiser_window[p][q], wx_r_table[ind_j], group_3D_table[n + ind_j * NHard][p][q]);
 
 						denominator[(index_h[k_r][n] + p)][(index_w[k_r][n] + q)] += kaiser_window[p][q]
-							* wx_r_table[ind_j];
+							* weight_table[ind_j];
 					}
 			}
 		}
@@ -858,23 +885,32 @@ int main()
 		for (int j = 0; j < SIZE_W_PAD; j++)
 		{
 			img_basic[i][j] = numerator[i][j] / denominator[i][j];
-		//	printf(" img_basic: %f  ", img_basic[i][j]);
+			//	printf(" img_basic: %f  ", img_basic[i][j]);
 		}
 	}
-
 
 	for (i = 0; i < H; i++)
 	{
 		for (j = 0; j < W; j++)
 		{
-			img_out[i*W+j] = img_basic[i + N2][j + N2];
+			img_out[i * W + j] = img_basic[i + N2][j + N2];
 		}
 	}
 	if (write_png_f32(output_img, img_out, (size_t)nx, (size_t)ny, (size_t)nc) != 0) {
 		printf("... failed to save png image %s", output_img);
 	}
 
-
+	for (i = 0; i < H; i++)
+	{
+		for (j = 0; j < W; j++)
+		{
+			image_step1[i][j] = img_basic[i + N2][j + N2];
+		}
+	}
+	compute_psnr(Image, image_step1, &psnr[0], &rmse[0]);
+	printf("For image after step 1 : \n" );
+	printf("PSNR : %f \n",psnr[0]);
+	printf("RMSE : %f \n",rmse[0]);
 	return 0;
 
 }
