@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include<time.h>
-#include "io_png.h"A
+#include "io_png.h"
 #define DTYPE int
 #define H 384
 #define chnls 1
