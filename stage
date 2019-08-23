@@ -1,0 +1,66 @@
+1.	Outils-gecos exploration
+/fr.irisa.cairn.gecos.typeexploration/src/fr/irisa/cairn/gecos/typeexploration/TypesExploration.java 	(main function)
+/fr.irisa.cairn.gecos.typeexploration/src/fr/irisa/cairn/gecos/typeexploration/accuracy/SimulationAccuracyEvaluator.java（calculer psnr，ssim）
+/fr.irisa.cairn.gecos.typeexploration/src/fr/irisa/cairn/gecos/typeexploration/accuracy/SSIMEvaluator.java 
+/fr.irisa.cairn.gecos.typeexploration/src/fr/irisa/cairn/gecos/typeexploration/solutionspace/SolutionSpaceAnalyzer.java  (ajouter same constraint)
+/fr.irisa.cairn.gecos.typeexploration/src/fr/irisa/cairn/gecos/typeexploration/solutionspace/SolutionSpaceConstraintsProcessor.java  ("Might have a SAME constraint cycle!")
+/home/x80054656/gecos-float2fix/bundles/fr.irisa.cairn.gecos.typeexploration/src/fr/irisa/cairn/gecos/typeexploration/dse （ les algorithmes pour l’optimisation ）
+
+Python： SSIM: 0.8392515014954521 PSNR: 34.62027635519483
+Normalization in ProfilingEngine  png:255 raw:1024  (already normalized)
+ 
+Normalize [0-1] I={1} can’t represent 1: EXP_T s=1.0; value is -1.00000; float p =(float)s; p= -1.000000;
+ 
+When do the “Generation de l’image png de la solution ” should add this normalization ( be careful with read_png() will return float, image type I={1} change type after normalize)
+
+
+Question: 
+Normalization and execute time?  example: count++ (0-1024) if use int count, int/float =int, must use float (I=11), use sqrt(count)(0-32), but need more times to execute.
+
+Use a good point of departure (point de départ),must 32.29571217134096 well define the integer part, do some tests.
+How to define #pragma like int :val_255==255, c=1;
+
+Error:
+1. Can’t have cycles with SAME constraints ( A same as B, B same as C, C same as A)
+2. Error “Failed to evaluate accuracy for solution 2” : W= I= not correct.
+//3. for() {}; be sure always have Bracket;
+  3. add initializaiton for variables $inject(also png or raw) and normalise image when you genrerate image optimized by tool.
+
+issue : 
+1.	PSNR_DB 
+Not getMax, for 8bit it should be 255, if normalized by 255, it’s ok, getMax=1;else getMax=255/256, error:20*log(255/25)=0.034;
+ 
+
+
+
+ 
+Bm3d (NBBIT, NBINT) PSNR que l’image denoised en flottant.
+Bm3d(24,9): PSNR : 55.412331 RMSE : 0.432438  executed in 6.920000 seconds
+Bm3d(17,9): noised PSNR : 25.993330  RMSE : 12.790092 float : PSNR : 27.577040  RMSE :  10.658307 SSIM: 0.9712537750186514
+Bm3d(18,9): PSNR: 34.62393853509849  RMSE : 4.735254  SSIM: 0.9887641566599461
+Bm3d(19,9): PSNR: 40.21469126609114  RMSE : 2.487744  SSIM: 0.9933646129323747
+Bm3d(20,9): PSNR: 45.02007385555511 RMSE : 1.430660 SSIM: 0.9952214949837833
+signalStats.getMax()=1
+
+optimised :
+- Accuracy = {MAX_ABS_ERR=0.10935038328170776, POWER=5.874333592017336E-4, PSNR=1703.431789210452, PSNR_DB=32.31324747729192, SSIM=0.9870879500199141}
+Cost = 1295.0
+(python) PSNR: 32.61281032383948  SSIM: 0.9865845018232169 
+ 
+
+	- Accuracy = {MAX_ABS_ERR=0.8614338040351868, POWER=0.008398730078329917, POWER_DB=-20.757863760414136, PSNR=119.06561952504723, PSNR_DB=20.757863760414136, SSIM=0.9454484082862081}
+	- Accuracy = {MAX_ABS_ERR=0.8614338040351868, POWER=0.00839986106712996, POWER_DB=-20.75727897066428, PSNR=119.04958808344638, PSNR_DB=20.75727897066428, SSIM=0.9454484082862081}
+
+	- Accuracy = {MAX_ABS_ERR=0.8614338040351868, POWER=0.00839986106712996, POWER_DB=-20.75727897066428, PSNR=7741199.465126101, PSNR_DB=68.88808257934338, SSIM=0.9454484082862081}
+
+Basenlm (20,9) PSNR : 40.918823 RMSE : 2.294029 executed in 5.810000 seconds
+Basenlm (18,9) PSNR : 29.817932 RMSE : 8.234620 executed in 5.780000 seconds
+ac_fixed <N,I,1,AC_TRN,AC_WRAP>: -(2^N-1)…(2^N-1)-1
+How to normalize the weight_table(0-1024): norm=1024 NBINT=11, use sqrt() time
+Found solution (id=3): - Accuracy = 44.17740490608149  - Cost = 1407.0
+Metrics:
+	- Accuracy = {MAX_ABS_ERR=0.8614338040351868, POWER=0.016797460156659835, POWER_DB=-17.747563803774323, PSNR=44.17740490608149, PSNR_DB=16.45200200714442}
+	- Cost = {AREA_MODEL={FULL_APPLICATION=0.0}, ENERGY_MODEL={FULL_APPLICATION=0.0}, W_SUM={FULL_APPLICATION=1407.0}}
+
+ 
+
