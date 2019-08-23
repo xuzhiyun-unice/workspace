@@ -1,0 +1,295 @@
+1.	Install guideline :
+https://gitlab.inria.fr/gecos/gecos-float2fix/blob/master/README.md
+
+1.1	Other  software to install:
+
+gcc.x86_64                       4.8.5-16.el7_4.1   
+cmake.x86_64                         3.12.0-1.el7
+libpng.x86_64                     2:1.5.13-7.el7_2   
+
+Pour java -version:
+openjdk version "1.8.0_151"
+OpenJDK Runtime Environment (build 1.8.0_151-b12)
+OpenJDK 64-Bit Server VM (build 25.151-b12, mixed mode)
+
+Pour installer java : yum install java-1.8.0-openjdk java-1.8.0-openjdk-devel
+
+Installer ensuite:
+Eclipse photon (last version)
+Eclipse IDE for Java Developers
+
+-	Download the latest eclipse version (photon - 64 bits)
+-	install IDE for java developper (choose where you want)
+-	lunch eclipse (choose location of the workspace)
+1.2	 Gecos Tool install
+
+This section describes the steps to install Gecos tools on Linux VM.  
+
+#INSTALL GECOS CORE
+help -> install new software
+add
+location: http://gecos.gforge.inria.fr/updatesite/updates 
+select Core -> Gecos Core -> next -> next -> finish
+
+#INSTALL TYPEEXPLORATION
+(choose a location to clone sources)
+git clone https://gitlab.inria.fr/gecos/gecos-float2fix.git 
+(or git clone git@gitlab.inria.fr:gecos/gecos-float2fix.git)
+under eclipse
+file -> import -> (general -> existing projects into workspace) -> next
+select gecos-float2fix/bundles
+select search for nested projects
+deselect all
+select *.typeexploration (except typeexploration.wizard)
+finish
+
+#INSTALL GECOS CORE PROFILING
+git clone https://gitlab.inria.fr/gecos/gecos-core.git
+under eclipse
+file -> import -> (general -> existing projects into workspace) -> next
+deselect all
+select core.profiling
+finish
+
+
+#RUN TYPEEXPLORATION UNDER ECLIPSE
+# FILES ARE UNDER typeexploration.demo
+select a script file (e.g. test_nlm_png.cs) and Run As -> Compiler Script
+
+The following is useful to run the demo. 
+For nlm_png, you need to change image location in src-c/nlm.c (lines 191 to 215).
+Attached a tar.gz archive with all images in the png format.
+
+
+Notes on installation:
+- CMake 3.1 or higher is required
+- libpng package is required
+1.3	Instruction for latest update after bug corrections ( should not be required)
+Following some errors corrections in the first release some update was done. The location of those update is under. Normally, if we now do a new install those should be already in the uploaded code.
+cd where_you_installed_the_tool/gecos-float2fix
+
+git pull
+
+If you started from a clean update, you maybe need to regenerate the default properties by executing 
+TypesExploration("."); #regenearate default.properties
+
+in place of
+TypesExploration(p, "exploration.properties »);
+
+then change the file default.properties according to your needs as we discussed for the first explorations (or copy default.properties to exploration.properties) and change the script again to 
+TypesExploration(p, "exploration.properties »);
+or
+TypesExploration(p, « default.properties »);
+
+But that’s not maybe the problem since I think the file format of the *.properties files in the basenlm directory is up to date.
+1.4	 Some more fixes
+1.4.1	Fixe 1 (22/01/2019)
+
+
+  
+ 
+ 
+ 
+1/ 
+cd 
+copy the updated file under:
+./gecos-core/bundles/fr.irisa.cairn.gecos.core.profiling/src/fr/irisa/cairn/gecos/core/profiling/backend/ProfilingInfoParser.java
+
+2/
+cd 
+git clone git@gitlab.inria.fr:gecos/gecos-framework.git
+copy the updated file:
+./gecos-framework/bundles/fr.irisa.r2d2.gecos.framework/src/fr/irisa/r2d2/gecos/framework/utils/AbstractShell.java
+
+3/
+Import -> Existing Project into Workspace -> select gecos-framework as root directory
+Select only fr.irisa.r2d2.gecos.framework
+
+4/
+Done. It is running since yesterday so the bug seems to be corrected. 
+
+5/ éventuellement pour réduire la taille du log et supprimer les fichiers binaires inutiles
+copy the updated file:
+./gecos-core/bundles/fr.irisa.cairn.gecos.core.profiling/src/fr/irisa/cairn/gecos/core/profiling/backend/NativeProfilingEngineSupport.java
+copy the updated file:
+gecos-float2fix/bundles/fr.irisa.cairn.gecos.typeexploration/src/fr/irisa/cairn/gecos/typeexploration/accuracy/SimulationAccuracyEvaluator.java
+Oui c’est ce que je viens de faire. Je ne suis pas un pros de Git !
+Hier j’avais copie le fichier que tu m’avais envoye par mail SimulationAccuracyEvaluator.java
+dans
+gecos-float2fix/bundles/fr.irisa.cairn.gecos.typeexploration/src/fr/irisa/cairn/gecos/typeexploration/accuracy/
+comme indique
+5)
+copy the updated file:
+gecos-float2fix/bundles/fr.irisa.cairn.gecos.typeexploration/src/fr/irisa/cairn/gecos/typeexploration/accuracy/
+ 
+Cela a cause une erreur quand j’ai fait le git pull sur gecos-float2fix  ce qui me parait normal puisque j’avais modifie le fichier localement sans faire de git commit
+Je suis donc revenu sur la version original  puis j’ai refait le git pull  qui c’est cette fois bien passe
+1.4.2	 Fixe 3 (29 /01/2019)  
+This update is not needed if a git clone is done on a version more recent.
+There are 3 repositories
+gecos-core
+gecos-float2fix
+gecos-framework
+In  gecos-float2fix do
+git pull 
+
+1.4.3	Fixe 1 (Files sent 12/3/2019)
+ 
+File to be stored in 
+<install_dir>/gecos-core/bundles/fr.irisa.cairn.gecos.core.profiling/resources/ProfilingEngine_double/src/ProfilingEngine.cpp
+Run  under
+<install_dir>/gecos-core/bundles/fr.irisa.cairn.gecos.core.profiling/resources/ProfilingEngine_double/build
+./cmake_release.sh
+make
+
+ 
+Here above is an example of change
+W , H  need to be redefined 
+#define W 3968
+#define H 2976    
+Then inject RAW image
+
+1.5	Workaround Linux VM system constraint
+
+Pour l’aspect nombre de fichiers, tu peux verifier la limite autorisée pour les fichiers ouvert avec la commande shell:
+> ulimit -n  (ou -a pour voir tout les limites)
+
+Par default, c'est 1024. Pour la modifier utilise la commande:
+> ulimit -n <max>  
+ou bien:
+> ulimit -n unlimited
+
+1.6	Online documentation :
+La doc est ici : https://gitlab.inria.fr/gecos/gecos-float2fix/blob/master/bundles/fr.irisa.cairn.gecos.typeexploration/USER_GUIDE.md
+
+1.7	List of constraints
+This chapter is the aggreagation of mails sent to work around some limitations of the tool
+1.7.1	Pointers
+The constraint (but which is logical) is to put a #pragma EXPLORE_CONSTRAINT SAME on the pointers to avoid exploration.
+
+1.7.2	No Dynamic memory allocation
+	double *interm = malloc(W*H*sizeof(double));
+	for (int i=0; i<W*H; i++)
+		interm[i] = fpO[i]+(i%8);
+	for (int i=0; i<W*H; i++)
+		fpO[i] = interm[i];
+	free(interm);
+Not supported. There is a problem not only with our framework, but also with the library (ac_fixed) used for fixed-point support.
+Work around
+	typedef double TYPE_interm;
+	TYPE_interm *interm = (TYPE_interm *) malloc(W*H*sizeof(TYPE_interm));
+	for (int i=0; i<W*H; i++)
+		interm[i] = fpO[i]+(i%8);
+	for (int i=0; i<W*H; i++)
+		fpO[i] = interm[i];
+	free(interm);
+However, one typedef can currently be used by one Symbol only!
+So you cannot use the same typedef as type for 2 different symbols, like for 
+For example:
+
+  typedef double TYPE;
+  ...
+  TYPE *p = (TYPE *)malloc(sizeof(TYPE)*4); // OK
+  TYPE x; // NOT SUPPORTED !
+
+1.7.3	Float and immediate constant
+Do NOT use operations between a floating-point symbol and an immediate constant.
+This may cause compilation errors when we later change the type of the symbol
+More generally, keep in mind the fact that the floating-point symbols will be compiled with different types during the
+exploration. With that in mind, avoid operations that might cause conflicts or ambiguity depending of the backend Types
+library you select in the tool.
+For e.g:
+double x;
+.. = x * 0.5;
+During the exploration the type of x might be changed to ac_fixed<..>, this will result in a compilation error
+(ambiguous overload for ‘operator*’) since the ac_fixed library does not define such behavior.
+
+
+TIP: To avoid this problem, extract the constant into a separate variable.
+e.g:
+double C = 0.5;
+.. = x*C;
+
+1.7.4	
+Some other work around was done on latest code ( see basenlm code)
+ typedef float F_ABS;
+
+static F_ABS ABS(float x)
+{
+	float y = x;
+	if (x<0)
+		y = -x;
+	return y;
+}
+….
+
+	F_ABS dist=0.0;
+….
+	dist = dist + ABS(dif);
+
+et cela semble fonctionner. 
+
+Par contre on va retomber sur le même problème d’unicité des types. Si on veut appeler une deuxième fois ABS() il faudra
+typedef float F_ABS2;
+F_ABS2 dist2=0.0;
+…
+
+	dist2 = dist2 + ABS(dif);
+
+
+1.8	Gecos Configuration:
+1.8.1	Graph
+For displaying the graph, there is an option in the properties file
+enableCharts = false
+1.8.2	Mode verbose for debug
+Dans le fichier : …./fr.irisa.cairn.gecos.core.profiling/src/fr/irisa/cairn/gecos/core/profiling/backend/NativeProfilingEngineSupport.java
+----> Ligne 150: private static final boolean verbose = false; 
+changer le false en true
+
+1.8.3	Additional Memory for Eclipse
+Choisir Run as -> Run Configurations; choisir le bon nom de script dans Eclipse Application; aller dans l’onglet Arguments; dans la fenêtre VM arguments ajouter -Xmx16g pour par exemple 16g (par défaut c’est 1g je crois); Apply puis Run.
+
+
+ 
+ 
+
+2	Execution exterieur du programme sans exploration en Ac_fixed
+ 
+3	Execution exterieur du programme sans exploration en float
+Meme chose que precedemment mais avec les linges float decommentees
+4	Generation de l’image png de la solution « range optimise » par l’outils
+Pour la génération de l'image: 
+- mettre les fichiers io_png.c et .h avec les sources dans le répertoire src-c (si ils y sont déjà, ce qui doit être le cas, c'est inutile de le faire); 
+- mettre les fichiers utils.c et .h avec les sources dans le répertoire src-c (écraser ceux qui y sont déjà); 
+	- mettre le fichier Makefile_solution dans le répertoire build;
+	 
+	- le résultat de la dernière exploration se trouve dans le répertoire .../outputs/basenlm/2019-xx-xx-xx:xx:xx/exploration/solution avec
+	2019-05-03-11:20:27 la date et l'heure du résultat que tu souhaites simuler. Ce répertoire contient deux fichiers : basenlm_float.c (c'est le même nom que ton fichier source) et typedefs.h. Le fichier .h contient les types résultant de l'exploration et le fichier .c est un code instrumenté du même style que celui utilisé lors de l'exploration;
+
+- éditer ce fichier
+	.../outputs/basenlm/2019-05-03-11:20:27/exploration/solution/basenlm_float.c  ( ce fichier ne change pas tant que le code ne change pas)
+- ajouter les lignes read_raw et write_raw dans le main avant et après l'appel de la fonction
+-Il faut ajouter des variables qui sont initialisés par  $inject( $from_var())
+
+	     ProfilingEngine_start();
+	     read_raw("/home/x80054656/projet/testimages/I01_raw_400x400.raw", fpI); // à ajouter
+	     basenlmeans_dcmp_float_hw(fpI, fpO); 
+	     write_raw("/home/x80054656/projet/testimages/I01_raw_400x400_testdenoised_acfixed.raw", fpO); // à ajouter
+	     ProfilingEngine_finalize("profiling-files/");
+ 
+	Ces lignes permettent de lire le fichier raw spécifié et d'écrire la sortie dans un fichier raw et son équivalent en png.
+
+	Il faut modifier tout en haut de ce fichier de cette façon :
+	#include "typedefs.h"
+	#include "utils.h"
+
+	pour avoir typedefs défini avant utils.
+- éditer le fichier Makefile_solution et changer les variables OUTPUT et NAME pour avoir le bon chemin et le bon nom de fichier à compiler. Pour mettre a jour le chemin <date>
+	 OUTPUT=/home/slasser/Work-space/isp_v160_rawnf/basenlm/outputs/basenlm/2019-05-03-11:20:27/exploration/solution/
+-editer le ficher utils.c pour mettre le bon type pour fpI and fpO
+- dans build faire : make -f Makefile_solution basenlm_solution puis ./basenlm_solution
+
+Les images de sortie sont dans le répertoire spécifié dans l'appel de la fonction write_raw
+
+5	Script to manage variables and pragma
+ 
