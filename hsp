@@ -1,0 +1,960 @@
+海思半导体有限公司
+ Huawei Technologies Co. Ltd.	产品版本Product version	密级Confidentiality level
+	V0.5	For internal use only
+	产品名称Product name:	页数Total pages
+	HiStarISP V160	21
+
+
+HiStarISP V160
+
+Algorithm specification
+
+Raw noise reduction
+
+拟制:
+Developped by	Yangxiaowei
+Linshaowei		日期：
+Date	Aug 5, 2016
+评审:
+Reviewed by			日期：
+Date	
+批准:
+Authorized by			日期：
+Date	Select a date
+
+ 
+海思半导体有限公司
+Hisilicon Technologies Co., Ltd.
+版权所有  侵权必究
+All rights reserved
+
+
+ 
+Revision history	
+Index	Date	Revision	Author
+1	2016/8/9	0.8	yangxiaowei
+2	2016/8/10	0.9	linshaowei
+3	2016/8/10	1.0	linshaowei
+			
+			
+
+Description of the updates:
+	HiStarISP V160 RAWNF draft
+	Add grey mode description
+	Add 11x11/9x9/8x8 kernal selection/edge analysis/parameters description. Add parameter description
+References 
+#	Name	Revision	Location
+			
+			
+			
+			
+			
+
+
+ 
+Table of Contents
+1.	Introduction	8
+2.	Architecture	9
+3.	RAWNF in ISP pipeline	11
+4.	Requirements	12
+4.1.	Input /Output formats	12
+5.	Algorithm detail description	13
+5.1.	Common Sub Modules	13
+5.1.1.	Linear Interpolation Module	13
+5.2.	LPFilter	15
+5.2.1.	Comments	16
+5.3.	LPFilter3x3_Raw	17
+5.3.1.	Comments	18
+5.4.	Downscaler4/Upscaler4 with error (for multiscale RAWNR )	19
+5.5.	CalcMean	21
+5.5.1.	Comments	21
+5.6.	CasingleChnlcMean	21
+5.6.1.	Comments	22
+5.7.	Noise strength estimation	23
+5.7.1.	Comments	23
+5.8.	noise strength estimation luma	23
+5.8.1.	Comments	24
+5.9.	DN2	25
+5.9.1.	Comments	25
+5.10.	Gradation analyze	26
+5.10.1.	Comments	27
+5.11.	BM	29
+5.11.1.	Comments	30
+5.12.	CalcSingleChnlSD	30
+5.13.	detailStrengthEstimation	32
+5.13.1.	Comments	32
+5.14.	saturationEstimation	33
+5.14.1.	Comments	33
+5.15.	Nr strength control	35
+5.15.1.	Comments	36
+5.16.	nondirShiftTableGenerator	38
+5.16.1.	Comments	38
+5.17.	sad2weight	39
+5.17.1.	Comments	39
+5.18.	normalize	41
+5.18.1.	Comments	41
+5.19.	Blend	42
+5.19.1.	Comments	43
+
+ 
+List of figures
+Figure 2 1 RAWNF Architecture	11
+Figure 2 2 multiscale RAWNF Architecture	12
+Figure 3 1 DE in ISP pipeline	13
+Figure 5 1 Three section piecewise function curve	15
+Figure 5 2 Five sections piecewise function curve	16
+Figure 5 3 3x3 gaussian filter as example	17
+Figure 5 4 raw to luma	17
+Figure 5 5 LPF3X3 parameters	18
+Figure 5 6 R/B LPF	19
+Figure 5 7 Gr/Gb LPF	19
+Figure 5 8 Grey mode LPF	19
+Figure 5 9 LPF3X3 parameters	20
+Figure 5 10 Downscaler operation	21
+Figure 5 11 Upscaler operation	22
+Figure 5 12 calculate mean value of 5x5 array as example	23
+Figure 5 13 calcMean parameters	23
+Figure 5 14 calculate mean value of 3x3 points in 5x5 array as example	23
+Figure 5 15 CasingleChnlcMean parameters	24
+Figure 5 16 noise strength estimation parameters	25
+Figure 5 17 noise strength estimation luma parameters	26
+Figure 5 18 downscale2 operation	27
+Figure 5 19 DN2 parameters	27
+Figure 5 20 first derivative	28
+Figure 5 21 Gradation analyse parameters	29
+Figure 5 22 Block matching	31
+Figure 5 23 Grey mode block matching	31
+Figure 5 24 BM parameters	32
+Figure 5 25 3x3 points selected in 5x5 for SD calculate as example	32
+Figure 5 26 detailstrength estimation parameters	34
+Figure 5 27 detailstrength estimation parameters	35
+Figure 5 28 parameters of calc maxWeightRatio	37
+Figure 5 29 parameters of scale curFH depend on gradientFactor	37
+Figure 5 30 parameters of scale curFH in flat region depend on detailSensorLpf	37
+Figure 5 31 parameters of scale curFH depend on detailSensorLpf	37
+Figure 5 32 parameters of scale curFH depend on lumaRatio	37
+Figure 5 33 parameters of calculate subscale	38
+Figure 5 34 parameters of nondirShiftTableGenerator	40
+Figure 5 35 sad2weight	41
+Figure 5 36 parameters of sad2weight	41
+Figure 5 37 Normalize	43
+Figure 5 38 grey moed Normalize	43
+Figure 5 39 parameters of normalize	44
+Figure 5 40 blend with LPF	45
+Figure 5 41 blend with original	45
+
+ 
+List of Tables
+
+未找到图形项目表。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Abstract
+RAWNF module is to decomp the image into clean image and noise in raw domain , 
+This paper describe the detail implementation of RAWNF.
+ 
+Introduction
+In ISP pipeline, the image noise may be expanded due to some module processing, so the RAWNF is implementated to reduce the noise in advance in pipeline.  The RAWNF can reduce strong noise and keep strong edge information and HF detail at the same time, however some weak low frequency detail information may be reduced too. 
+So RAWNF module is to decomp the image into clean image and noise:
+noise = RAWNF_input – RAWNF_output
+RAWNF_output : keep the fine detail.
+Noise : keep noise and some weak low frequency detail.
+ 
+Architecture
+The RAWNF algorithm architecture is shown as below:
+
+Figure 2 1 RAWNF Architecture
+	BM :is block match module, calculate the SAD between reference patch with the center patch;The max seach points are 11x11(in one channel), compare window size is 5x5; total input data are 25x25. User can select 11x11 or 9x9 or 7x7 seach points.
+	Nr strength control : generator nr strength parameters.
+	SAD to weight : change SAD to weight. 
+	Non direction weight control : make the weight of surrounding pixels become smaller in flat region.
+	Normalize : weighted average, calculate the result(fpODenoised) of NLM.
+	5X5LPF(single channel3x3) : apply a 3x3 gaussian filter to a single channel (R or Gr or Gb or B), depend on the type of the center pixel.
+	Blend with LPF : blend nr result with LPF depend on mean , detailSensorLpf and lumaRatio.
+	Blend with original : blend nr result with original image depend on fsigma and mean
+	5x5LPF(raw2luma) : apply 5x5 gaussian filter to the 17x17 pixels, generator 17x17 luma.
+	DN2 : downscale the image to 1/4 . 
+	Gradation analyze : detect gradation reigon in image
+	Noise strength estimation : look up luma noise table with local mean, get real noise strength.
+	Saturation Estimation : estimate saturation for R / B channel
+	Detail strength estimation : calculate detail strength in luma demain. And calculate lumaRatio at the same time , whitch stand for the saturation of single channel.
+	Nondir shift table generator : generator nondir shift weight table.
+	edgeDirectionAnalyse : detect edge direction and edge direction strength , used for nr strength control
+ 
+Figure 2 2 multiscale RAWNF Architecture
+	Multiscale RAWNR is to remove low frequency noise. Use two different RAWNR , the HF and LF store in the linebuffer.
+	DN4 : downscale the image to 1/16 times
+	UP4 : upscale the iamge to 16 times
+
+ 
+RAWNF in ISP pipeline
+The RAWNF module position in ISP pipeline is shown as below:
+
+ 
+Figure 3 1 DE in ISP pipeline
+	Other modules including LSC.
+
+ 
+Requirements
+Input /Output formats 
+	Input format: 
+	raw: 14 bit
+	Output format:
+	raw: 14 bit
+	noise:8 bit
+ 
+Algorithm detail description
+Common Sub Modules
+Linear Interpolation Module
+A linear interpolation module is used to get median result from specific piecewise function.  And the DE algorithm use two piecewise functions, one of the function curves is shown as below:
+ 
+Figure 5 1 Three section piecewise function curve
+	The x0, x1, y0, and y1 are the parameters defined by user, and the v is the input, y is the output from interpolation calculation:
+static int _linearinter_i (int v, int x0, int x1, int y0, int y1)
+{
+if (v <= x0)    return y0;
+    if (v >= x1)    return y1;
+
+    if(y1 >= y0)
+    {
+        return  (y0 + (y1-y0)*(v-x0)/(x1-x0));  // 0 protect
+    }
+    else
+    {
+        return  (y1 + (y0-y1)*(x1-v)/(x1-x0));  // 0 protect
+}
+}
+	The other piecewise function curve is shown as below:
+ 
+Figure 5 2 Five sections piecewise function curve
+The x0, x1, x2, x3, y0, y1 and y2 are the parameters defined by user, and the v is the input, y is the output from interpolation calculation:
+static INT32 _trapeziuminter_i (INT32 v, INT32 x0, INT32 x1, INT32 x2, INT32 x3, INT32 y0, INT32 y1, INT32 y2)
+{
+if(v <= x1)
+    {
+        y = _linearinter_i( v,  x0,  x1,  y0,  y1);
+    }
+    else
+    {
+        y = _linearinter_i( v,  x2,  x3,  y1,  y2);
+}
+}
+ 
+LPFilter
+The LPFilter use 5x5 window size gaussian kernel to do gaussian filter, apply on RAW domain, change RAW to luma, get 17x17 luma pixels array, the luma is used for detail strength estimation , gradation analyse and noise strength estimation(luma).  As shown in Figure bellow, the gaussian kernel is fixed [1,4,6,4,1].
+Since the gaussian filter kernel is radial symmetry, take a 3x3 window size gaussian filter as example:
+■(a^2&ab&a^2@ab&b^2&ab@a^2&ab&a^2 ) = [■(a@b@a)] x [■(a&b&a)]
+thus for 3x3 window filter, the Gaussian kernel is only need 2 coefficients a and b to do calculation, and for 5x5 window, 3 coefficients is needed.
+	Function LPFilter do the Gaussian filtering using the radial symmetry feature, firstly calculate the horizontal filter result by doing convolution each line in the 3x3 window with [■(a&b&a)] to get three intermedium result, then calculate the final result by doing convolution with [■(a@b@a)], the process is shown as below:
+ 
+Figure 5 3 3x3 gaussian filter as example
+ 
+Figure 5 4 raw to luma 
+
+Comments
+ 
+Figure 5 5 LPF3X3 parameters
+
+Variable	Bitwidth	Range	Value	Memo
+pWorkBufL	14Bit		[0,16383]		input
+pWorkLumaBufL	14Bit		[0, 16383]		output
+Table 1 : Parameter Comments
+
+ 
+LPFilter3x3_Raw
+The LPFilter3x3_Raw algorithm use 5x5 window size to do low pass filter, the result of LPF is blend with the result of NLM to generator the final noise reduction result. For R & B channel , use 3x3 pixels ; for GR/GB channel , use 3x3 + 2x2 pixels. 
+ 
+Figure 5 6 R/B LPF
+
+ 
+Figure 5 7 Gr/Gb LPF
+If grey mode is enable, all the pixels within 5x5 window will be used in LPF. The result of LPF is calculated as:
+
+1	1	1	1	1
+1	12	16	12	1
+1	16	128	16	1
+1	12	16	12	1
+1	1	1	1	1
+ 
+
+Figure 5 8 Grey mode LPF
+
+The coefficients of LPF are fixed both for grey mode and bayer mode.
+
+
+
+Comments
+ 
+Figure 5 9 LPF3X3 parameters
+
+Variable	Bitwidth	Range	Value	Memo
+pWorkBufL	14Bit		[0,16383]		input
+gfv	14Bit		[0, 16383]		output
+Table 1 : Parameter Comments
+ 
+Downscaler4/Upscaler4 with error (for multiscale RAWNR )
+The downscaler(DN4) and upscaler(UP4) with error module using in multiscale architecture use 4x scale.
+The downscaler average sixteen adjacent pixels to one pixel,and preserve the error , as the following figure show:
+ 
+Figure 5 10 Downscaler operation
+ 
+The upscaler use the downscaler result to resotre the original image data:
+
+If it is bayer mode, the sixteen adjacent pixels are the same channel. But for grey mode, we don’t distinguish the channel. 
+ 
+Figure 5 11 Upscaler operation
+ 
+ 
+CalcMean  
+CalcMean is to calculate average value of a input array.
+ 
+Figure 5 12 calculate mean value of 5x5 array as example
+Comments
+ 
+Figure 5 13 calcMean parameters
+	pWorkBufL is shift to 10bit for this module
+	mean is shift back to 14bit
+
+Variable	Bitwidth	Range	Value	Memo
+pWorkBufL	10Bit		[0,1024]		input
+mean	14Bit		[0,16383]		output
+Table 1 : Parameter Comments
+
+CasingleChnlcMean  
+CasingleChnlcMean is to calculate average value of selected points in a input array.
+ 
+Figure 5 14 calculate mean value of 3x3 points in 5x5 array as example
+	pWorkBufL is shift to 10bit for this module
+	mean is shift back to 14bit
+Comments
+ 
+Figure 5 15 CasingleChnlcMean parameters
+
+Variable	Bitwidth	Range	Value	Memo
+pWorkBufL	10Bit		[0,1024]		input
+mean	14Bit		[0,16383]		output
+Table 1 : Parameter Comments
+ 
+Noise strength estimation 
+Noise strength estimation is to estimate the local noise strength for noise reduction control .  
+	call function “ CalcMean “ to calculate local mean.
+	use mean to look up “luma-noise curve” , get noise strength(fsigma).
+Code as :
+ 
+
+Comments
+ 
+Figure 5 16 noise strength estimation parameters
+
+Variable	Bitwidth	Range	Value	Memo
+pWorkBufL	14Bit		[0,16383]		input
+pLimit_LUT	14Bit		[0, 16383]		input
+blacklevel	12bit		[0, 4096]		input
+fsigmas	14Bit		[0,16383]		output
+mean	14Bit		[0, 16383]		output
+Table 1 : Parameter Comments
+
+Variable	Bitwidth	Range	Value	Memo
+mean	14Bit		[0, 16383]		
+Table 1 : local Parameter Comments
+noise strength estimation luma
+Noise strength estimation luma is to estimate the local noise strength for detail strength estimation .  
+	call function “ CalcMean “ to calculate local mean.
+	use mean to look up “luma-noise curve” , get noise strength(fsigma).
+Code as :
+ 
+
+Comments
+ 
+Figure 5 17 noise strength estimation luma parameters
+
+Variable	Bitwidth	Range	Value	Memo
+pWorkBufL	14Bit		[0,16383]		input
+pLimit_LPF_LUT	14Bit		[0, 16383]		input
+blacklevel	12bit		[0, 4096]		input
+fsigmas	14Bit		[0,16383]		output
+mean	14Bit		[0, 16383]		output
+Table 1 : Parameter Comments
+
+Variable	Bitwidth	Range	Value	Memo
+mean	14Bit		[0, 16383]		
+Table 1 : local Parameter Comments
+
+ 
+DN2 
+The downscaler2(DN2) is used in gradation analyze use 2x scale.
+The downscaler2 select one pixels in four pixels to one pixel, as the following figure show:
+ 
+Figure 5 18 downscale2 operation
+Code as:
+ 
+Comments
+ 
+Figure 5 19 DN2 parameters
+
+Variable	Bitwidth	Range	Value	Memo
+pWorkBufL	14Bit		[0,16383]		input
+pLPF	14Bit		[0,16383]		output
+Table 1 : Parameter Comments
+
+
+
+ 
+Gradation analyze 
+Gradation analyse is to detect gradient region use 9x9 pixels.
+	Calculate first derivative
+ 
+Figure 5 20 first derivative 
+	Input data size is 9x9 , only 7x7 points in green window calculate first derivative.
+	Horizontal first derivative (p11 example) = p10 – p12 , others are the same.
+	vertical first derivative (p11 example) = p01 – p21 , others are the same.
+Code as:
+ 
+	Gradation ratio statistic
+Count the number which have the same symbol for Horizontal first derivative and vertical first derivative.
+Count the number which have the similar value for first derivative (Horizontal first derivative and vertical first derivative Together).
+ Code as:
+ 
+
+Comments
+ 
+Figure 5 21 Gradation analyse parameters
+
+Variable	Bitwidth	Range	Value	Memo
+pLPF	14Bit		[0,16383]		input
+fsigmaslpf	14Bit		[0,16383]		input
+gradientFactor	9Bit		[0,511]		output
+Table 1 : Parameter Comments
+
+Variable	Bitwidth	Range	Value	Memo
+horiDiff	14Bit		[-8191,8191]		
+vertiDiff	14Bit		[-8191,8191]		
+diffMeanV	14Bit		[0,8191]		
+diffMeanH	14Bit		[0,8191]		
+sameNRatio	11Bit		[0,2047]		
+sameDirRatio	11Bit		[0,2047]		
+Table 1 : local Parameter Comments
+
+ 
+BM
+The BM module is to calculate the SAD between 80 reference patch(PATCH0~PATCH80,not include PATCH40) with the center patch(PATCH40) , the patch size is 5x5,as the following figure show:
+ 
+Figure 5 22 Block matching
+	The size of input data are 21x21.
+	The number of search points are 9x9. The green points are the reference pixels , 80 reference pixels are used (not include center pixel).
+	The size of patch (compare window) is 5x5.
+
+For grey mode:
+
+	The size of input data are 13x13. Don’t distinguish channel.
+	The number of search points are 9x9.
+	The size of patch (compare window) is 5x5.
+
+
+
+
+
+
+
+
+Figure 5 23 Grey mode block matching
+
+Comments
+ 
+Figure 5 24 BM parameters
+
+Variable	Bitwidth	Range	Value	Memo
+pWorkBufL	10Bit		[0,1023]		input
+pSad[81] 	18Bit		[0,204800]		output
+Sadmean	14Bit		[0,16383]		output
+Table 2 : Parameter Comments
+CalcSingleChnlSD
+The CalcSingleChnlSD is to calculate standard Deviation with Bessel's correction for points selected in a input array.
+ 
+Figure 5 25 3x3 points selected in 5x5 for SD calculate as example
+
+Code as:
+ 
+ 
+detailStrengthEstimation
+Detailstrength estimation is to calculate local detail strength for noise reduction control . First call CalcSingleChnlSD get local standerd Deviation (varLPF), then divide  noise strength(fSigmaslpf) for normalization in different brightness.
+Code as:
+ 
+Comments
+ 
+Figure 5 26 detailstrength estimation parameters
+
+Variable	Bitwidth	Range	Value	Memo
+pWorkLumaBufL	14Bit		[0,16383]		input
+fSigmaslpf	14Bit		[0,16383]		input
+detailSensorLpf	8Bit		[0,255]		output
+Table 1 : Parameter Comments
+
+Variable	Bitwidth	Range	Value	Memo
+varLPF	14Bit		[0,16383]		
+Table 1 : local Parameter Comments
+ 
+saturationEstimation
+saturationEstimation is to estimate the saturation for R/B channel for noise reduction control. Call CasingleChnlcMean to get three local luminance for R/G/B , then calculate saturation, code as :
+ 
+
+Comments
+ 
+Figure 5 27 detailstrength estimation parameters
+
+Variable	Bitwidth	Range	Value	Memo
+pWorBufL	14Bit		[0,16383]		input
+lumaRatio	8Bit		[0,255]		output
+Table 1 : Parameter Comments
+
+Variable	Bitwidth	Range	Value	Memo
+meanG	8Bit		[0,255]		
+MeanRB0	8Bit		[0,255]		
+MeanRB1	8Bit		[0,255]		
+Table 1 : local Parameter Comments
+
+
+edgeDirectionAnalyse
+edgeDirectionAnalyse is to detect edge direction and edge direction strength , and generator shift table for weight control.
+edgeDirectionAnalyse is to detect edge direction use 9x9 pixels.
+	Calculate first derivative
+ 
+Figure 5 8 first derivative 
+      Calculate direction dependent coefficient A,B,C (horizontal, Diagonal and vertical difference)
+	Use A,B,C to decide the edge direction (iTheta)
+	Use A,B,C to decide the edge direction strength(iDirStrength)
+	Look up table to get the shift table(pDir_tab)
+	Use edge direction strength to ajust shift table(pDir_tab) , in flat region change the coefficient in shift table to 0, in edge region not change.
+ 
+Nr strength control 
+Nr strength control is used for noise reduction strength(curFH, nShift0, subscale, maxWeightRatio) control , these parameters used in sad2weight, change SAD to weight, depend on detailSensorLpf , gradientFactor, lumaRatio and lumaRatio.
+1) calculate maxWeightRatio for scale the weight of center pixel 
+ 
+Figure 5 28 parameters of calc maxWeightRatio
+2)scale curFH depend on gradientFactor, use bigger noise reduction strength in gradient region : curFH *= scNrs
+ 
+Figure 5 29 parameters of scale curFH depend on gradientFactor
+3)in flat region and if use non direction weight control, use bigger nr strength in flat region for compensate  : curFH *= curFH_sc
+ 
+Figure 5 30 parameters of scale curFH in flat region depend on detailSensorLpf
+4)scale curFH depend on detailSensorLpf , use bigger nr strength in stronger detail region: curFH *= curFH_sc
+ 
+Figure 5 31 parameters of scale curFH depend on detailSensorLpf
+5) scale curFH depend on lumaRatio , use smaller nr strength in high saturate region: curFH *= color_ns
+ 
+Figure 5 32 parameters of scale curFH depend on lumaRatio
+	calculate nShift0 ,denpend on curFH value .
+code as:
+ 
+	calculate subscale depend on luminance
+ 
+Figure 5 33 parameters of calculate subscale
+Comments
+Variable	Bitwidth	Range	Value	Memo
+detailSensorLpf	8Bit		[0,255]		input
+centerW_ds[0~6]	8Bit		[0,255]		input
+gradientFactor	9Bit		[0,511]		input
+gdnrscale[0~1] 	9Bit		[0,511]		input
+gdnrscale[2~3] 	8Bit		[0,128]		input
+nondirw_nrs
+[0~1]	8Bit		[0,255]		input
+nondirw_nrs [2~3] 	8Bit		[0,128]		input
+cplf_nrs[0~3]	8Bit		[0,255]		input
+cplf_nrs[4~6]	8Bit		[0,128]		input
+lumaRatio	8Bit		[0,255]		input
+mean	12Bit		[0,4095]		input
+nShift0	4Bit		[-7,12]		output
+curFH	19Bit		[0,409600]		output
+subScale	8Bit		[0,128]		output
+maxWeightRatio	8Bit		[0,255]		output
+Table 1 : Parameter Comments
+
+Variable	Bitwidth	Range	Value	Memo
+scNrs	8Bit		[0,128]		
+curFH_sc	8Bit		[0,128]		
+color_ns	8Bit		[0,128]		
+Table 1 : local Parameter Comments
+ 
+nondirShiftTableGenerator
+nondirShiftTableGenerator is used to generator parameters for non direction shift weight control in sad2weight module.
+	Given a fiexed 9x9 table 
+ 
+	Change the table depend on detailSensorLpf and mean , in flat region or dark region do not change , others change all the value in the table to 0
+Comments
+ 
+Figure 5 34 parameters of nondirShiftTableGenerator
+
+Variable	Bitwidth	Range	Value	Memo
+detailSensorLpf	8Bit		[0,255]		input
+pNonDir_tab9x9
+[81]	1bit		[0,1]		input
+mean	12Bit		[0,4095]		input
+pNonDir_tab9x9’
+[81]	1bit		[0,1]		output
+Table 1 : Parameter Comments
+Variable	Bitwidth	Range	Value	Memo
+nondirw_dsTH	8bit		[0,255]		
+nondirw_lumaTH	12Bit		[0,4095]		
+Table 1 : local Parameter Comments
+ 
+sad2weight
+sad2weight is to change SAD to weight use such formula:
+	sad to weight : weight = MAX (curFH – MAX (sad – (curFH* subScale),0),0)>> nShift0
+ 
+Figure 5 35 sad2weight
+2) non direction weight control : weight = weight >> pNonDir_tab9x9[idx]
+
+Comments
+ 
+Figure 5 36 parameters of sad2weight
+
+Variable	Bitwidth	Range	Value	Memo
+nShift0	4Bit		[-7,12]		input
+curFH	18Bit		[0, 204800]		input
+subScale	8Bit		[0,128]		input
+maxWeightRatio	8Bit		[0,255]		input
+pCurSad[81]	18Bit		[0, 204800]		input
+pNonDir_tab9x9
+[81]	1bit		[0,1]		input
+maxWeightRatio	8Bit		[0,255]		input
+pWeight	8Bit		[0,255]		output
+iMaxWeight	10Bit		[0,1023]		output
+Table 1 : Parameter Comments
+
+Variable	Bitwidth	Range	Value	Memo
+					
+					
+					
+Table 1 : local Parameter Comments
+ 
+normalize 
+Normalize is to do weighted average , is the final step of NLM . 
+ 
+Figure 5 37 Normalize
+
+
+If grey_mode is enable, the normalize is as:
+ 
+Figure 5 38 grey moed Normalize
+
+We can select 7x7 or 9x9 or 11x11 kernel during normalization for power saving consideration.
+
+
+
+
+
+Comments
+ 
+Figure 5 39 parameters of normalize
+
+Variable	Bitwidth	Range	Value	Memo
+pWorkBufL	14Bit		[0,16383]		input
+pWeight[81]	8Bit		[0,255]		input
+iMaxWeight	10Bit		[0,1023]		input
+Table 1 : Parameter Comments
+
+Variable	Bitwidth	Range	Value	Memo
+					
+					
+					
+Table 1 : local Parameter Comments
+
+Blend
+Blend module is to blend the reault of NLM(tR) with original and the result of LPFilter3x3_Raw(gfv) .
+	Blend with the result of LPFilter3x3_Raw depend on mean , detailSensorlpf and lumaRatio. 
+BlendRatio = bwo_blr* bwo_blr1* bwo_blr2
+tR = tR * (1 - bwo_blr) + gfv*bwo_blr
+ 
+Figure 5 40 blend with LPF
+	Blend with original
+If the difference between tR and original pixel(diff) is bigger than m * sigma, use original pixel as the result (tR = original).
+If the difference between tR and original pixel(diff) is bigger than n * sigma, blend with original pixel use such formula : 
+tR = (tR*6 + pWorkBufL[ail]*10)>>4
+Others , use blend with original pixel use such formula :
+tR = (tR*(16 - bworig_blr) + pWorkBufL[ail]*bworig_blr)>>4;
+ 
+Figure 5 41 blend with original
+
+
+
+Comments
+Variable	Bitwidth	Range	Value	Memo
+pWorkBufL	14Bit		[0,16383]		input
+gfv	14Bit		[0,16383]		input
+detailSensorLpf	8Bit		[0,255]		input
+iMaxWeight	10Bit		[0,1023]		input
+mean	12Bit		[0,4095]		input
+lumaRatio	8Bit		[0,255]		input
+Table 1 : Parameter Comments
+
+Variable	Bitwidth	Range	Value	Memo
+blend_gf_luma[0~3]	12Bit		[0,4095]		
+blend_gf_luma[0~3]	8Bit		[0,128]		
+blend_gf_ds[0~1]	8Bit		[0,255]		
+blend_gf_ds[2~3]	8Bit		[0,128]		
+blend_gf_lr[0~1]	8Bit		[0,255]		
+blend_gf_lr[2~3]	8Bit		[0,128]		
+ds_blr[0~1]	12Bit		[0,4095]		
+ds_blr[2~3]	8Bit		[0,16]		
+Table 1 : local Parameter Comments
+
+ 
+Parameter description
+Parameter	Description
+ihright_in        	
+
+ihleft_in         	
+
+ihright_out       	
+
+ihleft_out        	
+
+scaler_grey_mode  	
+
+rawnr_mode        	
+
+limit_lut         	
+
+limit_lpf_lut     	
+
+gdnrscale_0       	
+
+gdnrscale_1       	
+
+gdnrscale_2       	
+
+gdnrscale_3       	
+
+nrs_subs_0        	
+
+nrs_subs_1        	
+
+nrs_subs_2        	
+
+nrs_subs_3        	
+
+hs_nrs_0          	
+
+hs_nrs_1          	
+
+hs_nrs_2          	
+
+hs_nrs_3          	
+
+luma_nrs_0        	10-bit [0,1023]; luma_nrs[1]: 10-bit [0,1023]; luma_nrs[2]: 8-bit  [0,128]; luma_nrs[3]: 
+
+luma_nrs_1        	10-bit [0,1023]; luma_nrs[1]: 10-bit [0,1023]; luma_nrs[2]: 8-bit  [0,128]; luma_nrs[3]: 
+
+luma_nrs_2        	10-bit [0,1023]; luma_nrs[1]: 10-bit [0,1023]; luma_nrs[2]: 8-bit  [0,128]; luma_nrs[3]: 
+
+luma_nrs_3        	10-bit [0,1023]; luma_nrs[1]: 10-bit [0,1023]; luma_nrs[2]: 8-bit  [0,128]; luma_nrs[3]: 
+
+centerw_lumaiso_0 	10-bit [0,1023]; centerW_lumaISO[1]: 10-bit [0,1023]; centerW_lumaISO[2]: 9-bit  [0,256]; 
+
+centerw_lumaiso_1 	10-bit [0,1023]; centerW_lumaISO[1]: 10-bit [0,1023]; centerW_lumaISO[2]: 9-bit  [0,256]; 
+
+centerw_lumaiso_2 	10-bit [0,1023]; centerW_lumaISO[1]: 10-bit [0,1023]; centerW_lumaISO[2]: 9-bit  [0,256]; 
+
+centerw_lumaiso_3 	10-bit [0,1023]; centerW_lumaISO[1]: 10-bit [0,1023]; centerW_lumaISO[2]: 9-bit  [0,256]; 
+
+centerw_ds_0      	
+
+centerw_ds_1      	
+
+nondirw_nrs_0     	8-bit [0,255]; nondirw_nrs[1]: 8-bit [0,255]; nondirw_nrs[2]: 8-bit [0,128]; 
+
+nondirw_nrs_1     	8-bit [0,255]; nondirw_nrs[1]: 8-bit [0,255]; nondirw_nrs[2]: 8-bit [0,128]; 
+
+nondirw_nrs_2     	8-bit [0,255]; nondirw_nrs[1]: 8-bit [0,255]; nondirw_nrs[2]: 8-bit [0,128]; 
+
+nondirw_nrs_3     	8-bit [0,255]; nondirw_nrs[1]: 8-bit [0,255]; nondirw_nrs[2]: 8-bit [0,128]; 
+
+cplf_nrs_0        	8-bit [0,255]; cplf_nrs[1]: 8-bit [0,255]; cplf_nrs[2]: 8-bit [0,255]; cplf_nrs[3]: 8-bit [0,255]; cplf_nrs[4]: 8-bit [0,128]; cplf_nrs[5]: 8-bit [0,128]; cplf_nrs[6]: 8-bit 
+
+cplf_nrs_1        	8-bit [0,255]; cplf_nrs[1]: 8-bit [0,255]; cplf_nrs[2]: 8-bit [0,255]; cplf_nrs[3]: 8-bit [0,255]; cplf_nrs[4]: 8-bit [0,128]; cplf_nrs[5]: 8-bit [0,128]; cplf_nrs[6]: 8-bit 
+
+cplf_nrs_2        	8-bit [0,255]; cplf_nrs[1]: 8-bit [0,255]; cplf_nrs[2]: 8-bit [0,255]; cplf_nrs[3]: 8-bit [0,255]; cplf_nrs[4]: 8-bit [0,128]; cplf_nrs[5]: 8-bit [0,128]; cplf_nrs[6]: 8-bit 
+
+cplf_nrs_3        	8-bit [0,255]; cplf_nrs[1]: 8-bit [0,255]; cplf_nrs[2]: 8-bit [0,255]; cplf_nrs[3]: 8-bit [0,255]; cplf_nrs[4]: 8-bit [0,128]; cplf_nrs[5]: 8-bit [0,128]; cplf_nrs[6]: 8-bit 
+
+cplf_nrs_4        	8-bit [0,255]; cplf_nrs[1]: 8-bit [0,255]; cplf_nrs[2]: 8-bit [0,255]; cplf_nrs[3]: 8-bit [0,255]; cplf_nrs[4]: 8-bit [0,128]; cplf_nrs[5]: 8-bit [0,128]; cplf_nrs[6]: 8-bit 
+
+cplf_nrs_5        	8-bit [0,255]; cplf_nrs[1]: 8-bit [0,255]; cplf_nrs[2]: 8-bit [0,255]; cplf_nrs[3]: 8-bit [0,255]; cplf_nrs[4]: 8-bit [0,128]; cplf_nrs[5]: 8-bit [0,128]; cplf_nrs[6]: 8-bit 
+
+cplf_nrs_6        	8-bit [0,255]; cplf_nrs[1]: 8-bit [0,255]; cplf_nrs[2]: 8-bit [0,255]; cplf_nrs[3]: 8-bit [0,255]; cplf_nrs[4]: 8-bit [0,128]; cplf_nrs[5]: 8-bit [0,128]; cplf_nrs[6]: 8-bit 
+
+blend_gf_luma_0   	10-bit [0,1023]; blend_gf_luma[1]: 10-bit [0,1023]; blend_gf_luma[2]: 10-bit [0,1023]; blend_gf_luma[3]: 10-bit [0,1023]; blend_gf_luma[4]: 8-bit [0,128]; blend_gf_luma[5]: 8-bit [0,128]; blend_gf_luma[6]: 8-bit [0,128]; blend_gf_luma_0 < blend_gf_luma_1 < 
+
+blend_gf_luma_1   	10-bit [0,1023]; blend_gf_luma[1]: 10-bit [0,1023]; blend_gf_luma[2]: 10-bit [0,1023]; blend_gf_luma[3]: 10-bit [0,1023]; blend_gf_luma[4]: 8-bit [0,128]; blend_gf_luma[5]: 8-bit [0,128]; blend_gf_luma[6]: 8-bit [0,128]; blend_gf_luma_0 < blend_gf_luma_1 < 
+
+blend_gf_luma_2   	10-bit [0,1023]; blend_gf_luma[1]: 10-bit [0,1023]; blend_gf_luma[2]: 10-bit [0,1023]; blend_gf_luma[3]: 10-bit [0,1023]; blend_gf_luma[4]: 8-bit [0,128]; blend_gf_luma[5]: 8-bit [0,128]; blend_gf_luma[6]: 8-bit [0,128]; blend_gf_luma_0 < blend_gf_luma_1 < 
+
+blend_gf_luma_3   	10-bit [0,1023]; blend_gf_luma[1]: 10-bit [0,1023]; blend_gf_luma[2]: 10-bit [0,1023]; blend_gf_luma[3]: 10-bit [0,1023]; blend_gf_luma[4]: 8-bit [0,128]; blend_gf_luma[5]: 8-bit [0,128]; blend_gf_luma[6]: 8-bit [0,128]; blend_gf_luma_0 < blend_gf_luma_1 < 
+
+blend_gf_luma_4   	10-bit [0,1023]; blend_gf_luma[1]: 10-bit [0,1023]; blend_gf_luma[2]: 10-bit [0,1023]; blend_gf_luma[3]: 10-bit [0,1023]; blend_gf_luma[4]: 8-bit [0,128]; blend_gf_luma[5]: 8-
+
+blend_gf_luma_5   	10-bit [0,1023]; blend_gf_luma[1]: 10-bit [0,1023]; blend_gf_luma[2]: 10-bit [0,1023]; blend_gf_luma[3]: 10-bit [0,1023]; blend_gf_luma[4]: 8-bit [0,128]; blend_gf_luma[5]: 8-
+
+blend_gf_luma_6   	10-bit [0,1023]; blend_gf_luma[1]: 10-bit [0,1023]; blend_gf_luma[2]: 10-bit [0,1023]; blend_gf_luma[3]: 10-bit [0,1023]; blend_gf_luma[4]: 8-bit [0,128]; blend_gf_luma[5]: 8-
+
+blend_gf_ds_0     	8-bit [0,255]; blend_gf_ds[1]: 8-bit [0,255]; blend_gf_ds[2]: 8-bit [0,128]; 
+
+blend_gf_ds_1     	8-bit [0,255]; blend_gf_ds[1]: 8-bit [0,255]; blend_gf_ds[2]: 8-bit [0,128]; 
+
+blend_gf_ds_2     	8-bit [0,255]; blend_gf_ds[1]: 8-bit [0,255]; blend_gf_ds[2]: 8-bit [0,128]; 
+
+blend_gf_ds_3     	8-bit [0,255]; blend_gf_ds[1]: 8-bit [0,255]; blend_gf_ds[2]: 8-bit [0,128]; 
+
+blend_gf_lr_0     	8-bit [0,255]; blend_gf_lr[1]: 8-bit [0,255]; blend_gf_lr[2]: 8-bit [0,128] 
+
+blend_gf_lr_1     	8-bit [0,255]; blend_gf_lr[1]: 8-bit [0,255]; blend_gf_lr[2]: 8-bit [0,128] 
+
+blend_gf_lr_2     	8-bit [0,255]; blend_gf_lr[1]: 8-bit [0,255]; blend_gf_lr[2]: 8-bit [0,128] 
+
+blend_gf_lr_3     	8-bit [0,255]; blend_gf_lr[1]: 8-bit [0,255]; blend_gf_lr[2]: 8-bit [0,128] 
+
+bloi_nsigma_0     	
+
+bloi_nsigma_1     	
+
+ds_blr_0          	10-bit [0,1023]; ds_blr[1]: 10-bit [0,1023]; ds_blr[2]: 5-bit [0,16]; ds_blr[3]:5-bit 
+
+ds_blr_1          	10-bit [0,1023]; ds_blr[1]: 10-bit [0,1023]; ds_blr[2]: 5-bit [0,16]; ds_blr[3]:5-bit 
+
+ds_blr_2          	10-bit [0,1023]; ds_blr[1]: 10-bit [0,1023]; ds_blr[2]: 5-bit [0,16]; ds_blr[3]:5-bit 
+
+ds_blr_3          	10-bit [0,1023]; ds_blr[1]: 10-bit [0,1023]; ds_blr[2]: 5-bit [0,16]; ds_blr[3]:5-bit 
+
+edgedirth_0       	
+
+edgedirth_1       	
+
+edgedirth_2       	
+
+edgedirth_3       	
+
+edgedirth_4       	
+
+edgedirth_5       	
+
+edgedirth_6       	
+
+edgedirth_7       	
+
+edgedirth_8       	
+
+edgedirth_9       	
+
+edgedirth_10      	
+
+edgedirth_11      	
+
+edgedirth_12      	
+
+edgedirth_13      	
+
+edgedirth_14      	
+
+edgedirth_15      	
+
+edgedirth_16      	
+
+edgedirth_17      	
+
+edgedirth_18      	
+
+edgedirth_19      	
+
+edgedirs_0        	
+
+edgedirs_1        	
+
+edgedirs_2        	
+
+edgedirs_3        	
+
+edgedirs_4        	
+
+edgedirs_5        	
+
+edgedirs_6        	
+
+edgedirs_7        	
+
+edgedirs_8        	
+
+edgedirs_9        	
+
+edgedirs_10       	
+
+edgedirs_11       	
+
+edgedirs_12       	
+
+edgedirs_13       	
+
+edgedirs_14       	
+
+edgedirs_15       	
+
+edgedirs_16       	
+
+edgedirs_17       	
+
+edgedirs_18       	
+
+edgedirs_19       	
+
+edgedirs_20       	
+
+benableblend      	
+
+nondirw_dsth      	
+
+nondirw_lumath    	
+
+curdownscaleidx   	
+
+dirstrengthth_x0  	
+
+dirstrengthth_x1  	
+
+blacklevel        	
+
+rawnr_grey_mode   	1-bit  [0,1]        
+kernal_mode       	2-bit  [0,2]    
+
