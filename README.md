@@ -15,3 +15,6 @@ http://unice.fr/polytechnice/fr/entreprise/entreprise/apprentissage-contrat-pro#
 http://unice.fr/polytechnice/fr/contenus-riches/documents-telechargeables/formations-1/informatique/apprentissage-a-polytech-informatique-mathematiques-appliquees
 
 https://www.overleaf.com/
+
+
+http://josephsalmon.eu/talks/map5.pdf   image et bruit
