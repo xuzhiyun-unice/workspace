@@ -1,0 +1,284 @@
+Type Exploration Flow Manual
+Tomofumi Yuki, Ali El-Moussawi, Van-phu Ha, Olivier Sentieys
+June 25, 2019
+1 Introduction
+This document gives an overview of the type exploration flow in GeCoS. This flow is designed to automatically
+explore custom number representations for FPGAs and ASIC designs at the C source level. The main goal is
+to automatically explore the design space spanned by possible number formats in the context of High-Level
+Synthesis.
+The exploration flow follows the classical simulation-based exploration. The design space is explored by
+running simulations to evaluate the accuracy, guided by an algorithm of choice. The main flow consists of the
+following steps.
+1. Write a C program using floating-point datatypes that implement the desired computation. The segments
+of the code that should run on hardware should be separated as one or more functions. The C code must
+follow some conventions to be properly processed by the flow.
+2. Specify the design space by providing the range of wordlengths to explore. This may be provided for
+individual variables through pragmas, or as global default for all variables.
+3. Select the parameters of exploration. The main parameters include cost metric to optimize, the accuracy
+metric, accuracy constraints, and exploration algorithm.
+4. Run the exploration algorithm. It will report all the designs tested during exploration and return the
+design with lowest cost that satisfies the accuracy constraint.
+Limitations:
+1. The flow does not perform dynamic range analysis. It is assumed to be performed independently and the
+approximate wordlength for the integer part (or exponent) should be specified.
+2. The flow only supports fixed-point representation. Support for custom floating points is planned, but not
+available yet.
+In the next sections, details about each phase are explained.
+2 Writing C Specification
+The input specification is written as C programs. The flow does not support C++ code. The flow targets a
+function annotated by #pragma MAIN FUNC as the top-level function. This is analogous to the top-level function
+specified in HLS tools, and defines the region under exploration. Within this top-level function, typical HLS
+restrictions (such as no malloc, no recursive calls) apply.
+2.1 Granularity of Exploration
+How the C program is written affects the design space being explored. The variables in the source code defines
+the granularity of the exploration. For example, consider the following:
+float a , b ;
+a = ...
+b = a + 1;
+a = ...;
+b = a + 100;
+1
+The above describes two independent computations that reuses the variables a and b. In other words, you may
+rename the latter occurrences of a and b with x and y without changing the semantics. Thus, it may seem
+appropriate to assign different number representations for the different uses of a and b. However, the type
+exploration flow will only assign a number format for each variable that is common to all uses of the variable.
+If you want the two uses of a and b to have different number representations, then they must be explicitly
+given different names:
+float a , b ;
+a = ...
+b = a + 1;
+float x , y ;
+x = ...;
+y = x + 100;
+What is explored by the flow are possible design points that can be expressed by modifying the variable
+declaration. It is possible to automatically apply additional transformations to refine the granularity, but this is
+not supported. How the variables are declared is viewed as a way to specify the granularity of the exploration.
+2.2 Function Interface
+The top-level functions may call other functions. For every function call, the exploration flow automatically
+constrains the function parameters to have the same number representation as the input arguments at the call
+cite.
+For instance, if you have:
+foo ( float x ) { ... };
+float a , b ;
+a = ...
+b = ...
+foo ( a );
+foo ( b );
+Then all variables a, b, and x must have the same number representation.
+If a function is called multiple times with different types, then there must be multiple instances of the
+function. In the above, example, if the a and b have different data types, then the function foo requires two
+different implementations, one for each data type.
+If two separate instances of a function is desired, the function should be duplicated or inlined.
+2.3 Directives for Profiling
+The type exploration flow generates many versions of the top-level function for simulation. The top-level
+function is wrapped by code that populates the input variables, and code that writes output variables for
+analysis purposes.
+The input generation and profiled variables are controlled by directives - a special function processed by
+GeCoS when generating code.
+$save Directive
+All variables to be profiled must be specified at the observation point (usually at the end of the top-level
+function) using the $save directive.
+The syntax of the $save directive is:
+$save(<symbol> [, <size outermost>, ..., <size innermost>]);
+If the symbol is not a scalar, its dimension sizes must be specified in the $save directive.
+$inject Directive
+If main function is available in the input code, then the exploration flow assumes that the main does the
+necessary initializations and calls the top-level function.
+When there is no main, then one will be generated by the flow. In this case, the variable initializations must
+also be generated. The $inject directive is used to control this initialization.
+The $inject directive has the following syntax:
+$inject(<symbol>, SOURCE, [, <size outermost>, ..., <size innermost>]);
+2
+If the symbol is not a scalar, its dimension sizes must be specified as additional arguments. SOURCE can be
+either:
+• Random with uniform distribution: $random uniform(min, max [, seed])
+• Random with normal distribution: $random normal(mean, stddev [, seed])
+• C expression (as String): $from var(<any expression that evaluates as double>)
+• Read from file: $from file(<file path>)
+Currently, supports .txt files with the following format:
+ND_DIMS
+SIZE DIM 0
+...
+SIZE DIM ND_DIMS -1
+first value
+second value
+...
+.png image files in grayscale, and .raw image files. png files are normalized by 256. raw files are normalized
+by 1024 assuming 10-bit images of size W = 3968 and H = 2976 (this can be changed in the code if
+necessary).
+Note that $inject directive can be used anywhere even if main is defined, it will simply override the symbol
+values at its location.
+$size Directive
+The $size directive may be used prior to $save or $inject:
+$size(<symbol>, <size outermost>, ..., <size innermost>);
+This is an alternate way to specify the size information that is needed for $save and $inject directive.
+Using $size avoids the need to specify the size in both $save and $inject.
+2.4 Other Coding Guidelines
+• Your code should not define any function named as any of the directives ($save, $inject, or $size)!
+• Do not use operations between a floating-point symbol and a immediate constant. This may cause
+compilation errors when we later change the type of the symbol. More generally, keep in mind the fact
+that the floating-point symbols will be compiled with different types during the exploration. Operations
+that might cause conflicts or ambiguity in the eventual backend library (e.g., ac fixed) should be avoided.
+Currently the tool can only use AC DataTypes, but this could be easily extended to other libraries.
+For example, consider the following:
+double x ;
+.. = x * 0.5;
+During the exploration the type of x might be changed to ac fixed<..>, this will result in a compilation
+error (ambiguous overload for ‘operator*’) since the ac fixed library does not define such behavior.
+This particular problem can be avoided by extracting the constant into a separate variable.
+• Do not use type operations using explicit types, for example:
+# define TYPE double
+...
+TYPE * p = ( TYPE *) malloc ( sizeof ( TYPE )*4);
+In this case, the cast and the sizeof operations are not allowed, since they are not modified when the
+flow generates different designs by changing the data type of variable p. This problem can be avoided
+by using typedef. However, one typedef can currently be used by one symbol only. The flow does not
+handle the same type by a typedef for 2 different symbols. For example:
+typedef double TYPE ;
+...
+TYPE * p = ( TYPE *) malloc ( sizeof ( TYPE )*4); // OK
+TYPE x ; // NOT SUPPORTED !
+uses the same type for two variables, which is not supported.
+3
+3 Selecting the Exploration Space
+The space of exploration may be defined for each variable using pragmas or as a global configuration. In this
+section, fine tuning of the exploration space through pragmas is explained.
+These pragmas are called EXPLORE annotations and are attached to variable declarations in the input code.
+There can be multiple annotations to a variable, as long as they do not conflict each other.
+A default configuration is used for symbols with no EXPLORE annotations. This default configuration can be
+set in the configuration file explained in Section 4.
+pragma EXPLORE FIX
+Annotate a variable with pragma EXPLORE FIX to define the set of fixed-point configurations to be explored:
+# pragma EXPLORE_FIX W ={ SET_VALUES } I ={ SET_VALUES }}
+float symbol ;
+where
+• SET VALUES := (<min>..<max> | <value>)[, (<min>..<max> | <value>)]+
+• W: values to be explored for the total wordlength
+• I: values to be explored for the integer part
+The specification follows the conventions by AC DataTypes; note that the fractional part is implicitly defines
+as W - I.
+pragma EXPLORE FLOAT
+Annotate a variable with pragma EXPLORE FLOAT to define the set of custom floating-point configurations to be
+explored:
+# pragma EXPLORE_FLOAT W ={ SET_VALUES } E ={ SET_VALUES }
+float symbol ;
+where
+• SET VALUES := (<min>..<max> | <value>)[, (<min>..<max> | <value>)]+
+• W: values to be explored for the total wordlength
+• E: values to be explored for the exponent
+pragma EXPLORE CONSTRAINT
+Annotate a variable with pragma EXPLORE CONSTRAINT to define constraints on the choice of wordlengths.
+There is only one constraint in the current version:
+# pragma EXPLORE_CONSTRAINT SAME = < variable name >
+where the number representation of the annotated variable with be forced to be the same as the variable specified
+by the pragma.
+Note that you cannot have cycles with SAME constraints. The tool will detect cycles and complain when
+found. It is possible that a cycle is unintentionally created due to automatically addd SAME constraints for
+function calls (see Section 2.2).
+4 Selecting Parameters of the Exploration
+The exploration flow exposes many parameters though a configuration file (.properties). A file with default
+properties may be automatically generated, which can be modified to customize the flow.
+The exposed parameters are:
+• nbThreads: Number of threads to be used.
+• nbSimulations: Number of simulations to be performed when evaluating a design. The input can be
+made different for each of these simulations.
+• enableCharts: When set to true, the progress is visualized during the exploration.
+4
+• mainLogLevel: Selects the logging level of the entire flow.
+• explorationLogLevel: Selects the logging level of the exploration.
+• explorationMode: Selects the target number representation (FIXED or FLOAT).
+• timeTagOutput: When set to true, outputs are stored in different directories for each run (tagged by
+time).
+• nbOutputsToKeep: Number of time-tagged outputs to keep.
+• pruneFirst: If pruning is applied before starting the main exploration. See Section 4.1.1 for details.
+• explorationAlgo: Exploration algorithm to use. See Section 4.1 for details.
+• accuracyMetric: The accuracy metric(s) to use. See Section 4.3 for details.
+• accuracyThreshold: The threshold(s) on the selected accuracy metric(s).
+• costMetric: The cost metric to use. See Section 4.2 for details.
+• SSIMenabled: When set to true, SSIM is calculated. All other metrics such as PSNR is always computed.
+SSIM requires a specific flag since it is expensive to compute.
+• SSIMtarget: Variable name used to compute the SSIM.
+• defaultFixedW: Default range of total wordlength explored for fixed-point exploration. Accepts Commaseparated, positive integer value or value range (min..max)
+• defaultFixedI: Default range of integer part length explored for fixed-point exploration. Accepts Commaseparated, positive integer value or value range (min..max)
+• defaultFloatW: Default range of total wordlength explored for custom floating-point exploration. Accepts
+Comma-separated, positive integer value or value range (min..max)
+• defaultFloatE: Default range of exponent length explored for custom floating-point exploration. Accepts
+Comma-separated, positive integer value or value range (min..max)
+All the parameters are also explained in comments of the automatically generated property file.
+4.1 Exploration Algorithms
+There are currently three exploration algorithms: brute force, min+1, and Tabu search. In addition, pruning
+can be optionally performed to reduce the design space.
+Brute force exhaustively evaluates all possible solutions. This is infeasible except for cases with extremely
+small number of variables.
+All algorithms (except brute force) are a form of gradient descent. At each iteration, neighboring designs
+are explored and the best one is selected. The main difference in the available algorithms are starting point and
+terminating condition.
+The “best” design is selected from the neighbor as a function of how much accuracy and cost changed
+compared to the previously selected design. Currently, all methods use the following:
+δAccuracy
+δCost
+where
+• δAccuracy is the increase in the accuracy compared to the previously selected design. The value is
+normalized to take values in [−1, 1]; 0 when the accuracy is unchanged.
+• δCost is the increase in the cost compared to the previously selected design. The value is normalized to
+take values in [−1, 1]; 0 when the cost is unchanged.
+The above favors designs that has highest ratio of accuracy improvement to cost degradation.
+5
+4.1.1 Pruning
+Pruning keeps all but one variable in floating point, and determines the minimum wordlength that a variable
+can take without violating the accuracy constraint. This gives the lower bound on the valid wordlength for a
+variable, assuming that the error introduced by this variable will not be cancelled by others.
+The exploration flow performs a binary search for each variable, and prunes wordlength smaller than the
+minimum valid wordlength found.
+4.1.2 min+1
+The min+1 algorithm is a greedy gradient decent [3, 2]. It starts at the lowest wordlength choices in the valid
+range, and greedily follows the gradient. The gradient is followed until a design that satisfies the accuracy
+constraint is found.
+4.1.3 Tabu search
+Tabu search performs a more detailed search after reaching a design that satisfies the constraints in contrast to
+min+1 [4, 2].
+The algorithm repeatedly switches the direction: increases wordlength when the accuracy constraint is not
+met, and decreases when it is. As the direction is switched, the most influential variable that is left (i.e., the
+one that changed in the selected design after evaluating the neighboring designs) is put in to the “tabu list”,
+freezing its current choice of wordlength.
+4.2 Cost Metrics
+There are currently three cost metrics: sum of wordlengths, area model, and energy model.
+The sum of wordlengths is a na¨ıve cost model mostly for debugging purposes. It defines the cost as the sum
+of wordlengths of all variables.
+The area and energy model is a simple model that is aimed to capture the sharing of hardware resources
+(concrete operators) as a function of desired throughput. The model assumes that all operations can be executed
+in parallel and computes the number of concrete operators that needs to be instantiated to meet the throughput
+requirement. The area cost or the energy consumption is then calculated based on empirically measured
+cost/consumption of concrete operators for the target process technology.
+The model requires the number of (dynamic) operations for each pair of variables to be known. This could
+be automatically computed from the source code if the runtime parameters are fixed (which is always the case
+for simulations). However, it is not automated in the current version. The operation count and the target
+throughput is specified by a simple DSL, which looks like the following:
+The number of operations of each operator are specified for each pair of variables in the program. The blocks
+are grouping that is user defined.
+For the complete grammar of the DSL, see the Xtext grammar:
+https://gitlab.inria.fr/gecos/gecos-float2fix/blob/master/bundles/fr.irisa.cairn.gecos.typeexploration.
+computation.xtext/src/fr/irisa/cairn/gecos/typeexploration/Computation.xtext
+6
+4.3 Accuracy Metrics
+There are a number of supported accuracy metrics:
+• Maximum Absolute Error
+• PSNR (Peak Signal to Noise Ratio)
+• Noise Power
+• SSIM (Structural Similarity)
+Any number of these accuracy metrics can be used to define the accuracy constraint.
+Source Code Repository
+The type exploration flow is available open source at:
+https://gitlab.inria.fr/gecos/gecos-float2fix
+See README.md for detailed instructions on how to install the flow.
+References
+[1] Menard D, Caffarena G, Lopez JA, Novo D, Sentieys O. Analysis of Finite Word-Length Effects in
+Fixed-Point Systems. In: Handbook of Signal Processing Systems. pp. 1063-1101, 2019.
+[2] Menard D, Caffarena G, Lopez JA, Novo D, Sentieys O. Fixed-point refinement of digital signal processing
+systems. In: Digitally Enhanced Mixed Signal Systems. 2018.
+[3] Kim S, Kum K, Sung W. Fixed-Point Optimization Utility for C and C++ Based Digital Signal Processing
+Programs. In: Workshop on VLSI and Signal Processing. 1995.
+[4] Nguyen HN, Menard D, Sentieys O. Novel Algorithms for Word-length Optimization. In: 19th European
+Signal Processing Conference (EUSIPCO). Barcelona, Spain. 2011. Available from: https://hal.inria.
+fr/inria-00617718.
+7
