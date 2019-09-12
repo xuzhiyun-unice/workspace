@@ -18,3 +18,6 @@ https://www.overleaf.com/
 
 
 http://josephsalmon.eu/talks/map5.pdf   image et bruit
+
+Today is the last day of my internship, I really enjoyed it and I have learned so much, thanks you all! I brought some mooncake
+ and Chinese dessert, hope you guys will like it! 
